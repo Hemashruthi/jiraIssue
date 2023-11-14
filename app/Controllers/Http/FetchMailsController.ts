@@ -86,6 +86,7 @@ export default class FetchMailsController {
         console.log(`- ${label.name}`);
       });
     }
+
     async function listUnreadEmails(auth) {
         const gmail = google.gmail({ version: 'v1', auth });
       
@@ -106,7 +107,7 @@ export default class FetchMailsController {
               const email = await gmail.users.messages.get({
                 userId: 'me',
                 id: message.id,
-                format: 'metadata', 
+                format: 'full', 
               });
               console.log(email,'EMAIL')
       
@@ -120,40 +121,105 @@ export default class FetchMailsController {
               console.log('Email Snippet:', snippet);
               console.log('----------------------');
 
-              const jiraIssue = {
-                "fields": {
-                  // Jira issue fields
-                  // You can modify this part to fit your Jira configuration
-                  "project": {
-                    "key": 'CIT',
-                    "id": '10091',
-                  },
-                  "issuetype": {
-                    "name": 'Task', // Change the issue type if needed
-                  },
-                  "summary": `Gmail Email: ${subject}`,
-                  "description": {
-                    "content": [
-                      {
-                        "content": [
-                          {
-                            "text": `${snippet}`,
-                            "type": "text"
-                          }
-                        ],
-                        "type": "paragraph"
-                      }
-                    ],
-                    "type": "doc",
-                    "version": 1
-                  },
-                },
-              };
+
+
+          //     if (emailData.payload.parts) {
+          //       for (const part of emailData.payload.parts) {
+          //         if (part.filename) {
+          //           const attachment = await gmail.users.messages.attachments.get({
+          //             userId: 'me',
+          //             messageId: message.id,
+          //             id: part.body.attachmentId,
+          //           });
+  
+          //           if (Buffer.isBuffer(attachment.data)) {
+          //             const attachmentData = attachment.data.toString('base64');
+          // // console.log(`Attachment data: ${attachmentData}`);
+          //               // Here you can save the attachment to a file or upload it to Jira
+          //               // For simplicity, we'll just print the attachment data for now.
+          //               console.log('Attachment Filename:', part.filename);
+          //               console.log('Attachment Size:', part.body.size);
+          //               console.log('Attachment Data:', attachment.data);
+
+          //               // const attachmentBuffer = Buffer.from(attachment.data);
+          //               // const attachmentData = attachmentBuffer.toString('base64');
+          //               // const attachmentData = attachment.data.toString('base64');
+          //               console.log(attachmentData, 'attach');
+
+          const attachments = emailData.payload.parts.filter(
+            (part) => part.filename && part.filename !== ''
+          );
+      
+          const attachmentData = [];
+      
+          for (const attachment of attachments) {
+            const attachmentInfo = await gmail.users.messages.attachments.get({
+              userId: 'me',
+              messageId: message.id,
+              id: attachment.body.attachmentId,
+            });
+      
+            if (Buffer.isBuffer(attachmentInfo.data)) {
+              const base64Data = attachmentInfo.data.toString('base64');
+              attachmentData.push({
+                filename: attachment.filename,
+                content: base64Data,
+              });
+            }
+          }
+          
+          console.log('Email Attachments:', attachmentData);
+          console.log("-----------------------------------------------------------")
+
+
+                        const jiraIssue = {
+                          "fields": {
+                              // Jira issue fields
+                              // You can modify this part to fit your Jira configuration
+                              "project": {
+                                  "key": 'CIT',
+                                  "id": '10091',
+                              },
+                              "issuetype": {
+                                  "name": 'Task', // Change the issue type if needed
+                              },
+                              "summary": `Gmail Email: ${subject}`,
+                              "description": {
+                                  "content": [
+                                      {
+                                          "content": [
+                                              {
+                                                  "text": `${snippet}`,
+                                                  "type": "text"
+                                              }
+                                          ],
+                                          "type": "paragraph"
+                                      }
+                                  ],
+                                  "type": "doc",
+                                  "version": 1
+                              },
+                              "attachment": attachmentData.map((attachment) => ({
+                                "filename": attachment.filename,
+                                "content": attachment.content,
+                              })),
+                          },
+                          // "update": {
+                          //     "attachment": [
+                          //         {
+                          //             "set": {
+                          //                 "file": attachmentData, // attachmentData should be a base64-encoded string
+                          //                 "filename": part.filename,
+                          //             }
+                          //         }
+                          //     ]
+                          // }
+                      };
   
               // Set your Jira API base URL and credentials
               const jiraBaseUrl = 'https://ngpems.atlassian.net'; //edit
               const emailAccess = 'monnit.user@ngpwebsmart.com';
-              const apiToken = 'ATATT3xFfGF0hQUThIvYl2YDfPJ1uqWkF2BDGYGAXsm2-a8InJEbkh-M02lMaAoUBh7_J9l1ClnaUKnYnMwOL8Amug5zg3voLuBo3vP5OgF4NqWyDiYZHCvuWe2AkTMXBlmWBNkeKQcEcTdfisyjgXXA9hMBZj04FX6BPMCGHsiQ6NprWma7t_k=57AA5FDE'; //edit
+              const apiToken = 'ATATT3xFfGF0SMJ9CvqHYlIONTCmHeBVVRwY6GkMKd3EaXeUcsOGyLUs3pefBBkkYx90lJM8wERwl7Fiu0UXWpXsozWuFgHijLpI0znvoexNamMkJQuxMy3bvirR-IDcPhRFdUgwjiX9pxS2I66ZCcAaAQyUYi0BuPVX3VHqXHaD6XOQ1r5hg1c=E9202048'; //edit
   
               try {
                 const response = await axios.post(`${jiraBaseUrl}/rest/api/3/issue`, jiraIssue, {
@@ -182,12 +248,18 @@ export default class FetchMailsController {
               }
             }
           }
+        
+      
+    
+  
         } catch (err) {
           console.error('An error occurred while fetching unread emails:', err);
         }
 
 
-      }
+            }
+          
+        
       
       
     // authorize().then(listLabels).catch(console.error);
